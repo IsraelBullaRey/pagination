@@ -24,9 +24,19 @@ import {
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 
 import { Field, FieldLabel } from "@/components/ui/field";
-
 import Link from "next/link";
+
 import { ArrowUpIcon, ArrowDownIcon } from "lucide-react";
+
+// TABLE SHADCN
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -36,11 +46,10 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [ordering, setOrdering] = useState("full_name");
 
-  // PAGINATION
   const [page, setPage] = useState(1);
   const [nextPage, setNextPage] = useState(null);
   const [prevPage, setPrevPage] = useState(null);
-  const [total, setTotal] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const loadStudents = async () => {
     const url = `${API_BASE_URL}/students/?search=${query}&ordering=${ordering}&page=${page}`;
@@ -50,7 +59,6 @@ export default function Home() {
     setStudents(data.results || []);
     setNextPage(data.next);
     setPrevPage(data.previous);
-    setTotal(data.count);
   };
 
   const orderingClickHandler = (field) => {
@@ -62,13 +70,24 @@ export default function Home() {
     loadStudents();
   }, [query, ordering, page]);
 
-  // Crear estudiante
   const onSubmit = async (formData) => {
+    if (isDuplicate("code", formData.code)) {
+      toast.error("El código ya existe");
+      return;
+    }
+
+    if (isDuplicate("email", formData.email)) {
+      toast.error("El email ya existe");
+      return;
+    }
+
+    if (isDuplicate("full_name", formData.full_name)) {
+      toast.error("El nombre completo ya existe");
+      return;
+    } 
     const response = await fetch(`${API_BASE_URL}/students/`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
     });
 
@@ -76,78 +95,83 @@ export default function Home() {
       toast.success("Estudiante creado");
       reset();
       loadStudents();
-      document.getElementById("closeDialogBtn").click();
+      setDialogOpen(false);
     } else {
       const errorData = await response.json();
       let msg = "";
-      for (const key in errorData) {
-        msg += `${key}: ${errorData[key]}\n`;
-      }
+      for (const key in errorData) msg += `${key}: ${errorData[key]}\n`;
       toast.error("Error", { description: msg });
     }
   };
 
+  const onError = () => {
+    toast.error("Faltan campos obligatorios", {
+      description: "Completa todos los campos antes de guardar.",
+    });
+  };
+
+  const isDuplicate = (field, value) => {
+    return students.some((s) => String(s[field]).trim() === String(value).trim());
+  };
+
   return (
-    <Card className="w-[600px] mx-auto mt-6">
+    <Card className="bg-gray-200 w-[800px] mx-auto mt-6">
       <CardHeader>
-        <CardTitle>Listado de Estudiantes</CardTitle>
+        <CardTitle className="text-bold text-2xl flex justify-center">Listado de Estudiantes</CardTitle>
       </CardHeader>
 
       <CardContent>
-        {/* BUSCADOR */}
 
-        <div className="flex gap-3">
+        <div className="bg-neutral-50 rounded-lg flex gap-3 mb-4">
           <Input
             placeholder="Buscar..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
 
-          {/* ORDERING NAME */}
-          <Button
-            variant="outline"
-            onClick={() => orderingClickHandler("full_name")}
-          >
+          <Button variant="outline" onClick={() => orderingClickHandler("full_name")}>
             {ordering === "full_name" ? <ArrowDownIcon /> : <ArrowUpIcon />}
           </Button>
 
-          {/* ORDERING CODE */}
-          <Button
-            variant="outline"
-            onClick={() => orderingClickHandler("code")}
-          >
+          <Button variant="outline" onClick={() => orderingClickHandler("code")}>
             {ordering === "code" ? <ArrowDownIcon /> : <ArrowUpIcon />}
           </Button>
         </div>
 
-        {/* LISTADO */}
+        <div className="bg-neutral-50 h-80 overflow-y-auto border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-32">Código</TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead className="w-32 text-center">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
 
-        <div className="mt-4 h-80 overflow-y-auto">
-          <ul>
-            {students.map((s) => (
-              <li
-                key={s.code}
-                className="p-2 border rounded mb-2 flex justify-between"
-              >
-                <div>
-                  <b>{s.full_name}</b>  
-                  <span className="ml-2 text-gray-500">{s.email}</span>
-                </div>
-
-                <Link href={`/students/${s.id}`}>
-                  <Button variant="secondary">Ver detalle</Button>
-                </Link>
-              </li>
-            ))}
-          </ul>
+            <TableBody>
+              {students.map((s) => (
+                <TableRow key={s.code}>
+                  <TableCell>{s.code}</TableCell>
+                  <TableCell className="font-medium">{s.full_name}</TableCell>
+                  <TableCell>{s.email}</TableCell>
+                  <TableCell className="text-center">
+                    <Link href={`/students/${s.id}`}>
+                      <Button variant="secondary" size="sm">
+                        Ver detalle
+                      </Button>
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
-
-        {/* PAGINATION */}
 
         <div className="mt-4 flex justify-center">
           <Pagination>
             <PaginationContent className="flex gap-4">
-              {/* PREVIOUS */}
+
               <PaginationItem>
                 <Button
                   variant="outline"
@@ -158,7 +182,6 @@ export default function Home() {
                 </Button>
               </PaginationItem>
 
-              {/* NEXT */}
               <PaginationItem>
                 <Button
                   variant="outline"
@@ -168,15 +191,16 @@ export default function Home() {
                   Página siguiente
                 </Button>
               </PaginationItem>
+
             </PaginationContent>
           </Pagination>
         </div>
 
-        {/* DIALOG PARA CREAR */}
-
-        <Dialog>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="mt-4 w-full">Crear estudiante</Button>
+            <Button className="mt-4 w-full" onClick={() => setDialogOpen(true)}>
+              Crear estudiante
+            </Button>
           </DialogTrigger>
 
           <DialogContent>
@@ -184,31 +208,45 @@ export default function Home() {
               <DialogTitle>Nuevo Estudiante</DialogTitle>
             </DialogHeader>
 
-            <Field className="mt-2">
-              <FieldLabel>Nombre completo</FieldLabel>
-              <Input {...register("full_name", { required: true })} />
-            </Field>
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              className="mt-2 space-y-3"
+            >
+              <Field>
+                <FieldLabel>Nombre completo</FieldLabel>
+                <Input {...register("full_name", { required: true })} />
+              </Field>
 
-            <Field className="mt-2">
-              <FieldLabel>Email</FieldLabel>
-              <Input {...register("email", { required: true })} />
-            </Field>
+              <Field>
+                <FieldLabel>Email</FieldLabel>
+                <Input {...register("email", { required: true })} />
+              </Field>
 
-            <Field className="mt-2">
-              <FieldLabel>Código</FieldLabel>
-              <Input {...register("code", { required: true })} />
-            </Field>
+              <Field>
+                <FieldLabel>Código</FieldLabel>
+                <Input {...register("code", { required: true })} />
+              </Field>
 
-            <div className="flex justify-end mt-4">
-              <Button onClick={handleSubmit(onSubmit)}>
-                Guardar
-              </Button>
+              <Field>
+                <FieldLabel>Grupo</FieldLabel>
+                <select
+                  className="border rounded-md p-2 w-full"
+                  {...register("group")}
+                >
+                  <option value="">Sin grupo</option>
+                  <option value="1">Grupo 1</option>
+                </select>
+              </Field>
 
-              {/* botón invisible para cerrar modal programáticamente */}
-              <button id="closeDialogBtn" className="hidden"></button>
-            </div>
+              <div className="flex justify-end pt-4">
+                <Button type="submit" onClick={handleSubmit(onSubmit, onError)}>
+                  Guardar
+                </Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
+
       </CardContent>
     </Card>
   );
